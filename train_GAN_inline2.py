@@ -61,13 +61,13 @@ def gen_fake_label2(batch_size= batch_size):
 def save_checkpoint(checkpoint_path, model, optimizer):
     state = {'state_dict': model.state_dict(),
              'optimizer' : optimizer.state_dict()}
-    torch.save(state, os.path.join('../checkpoint',checkpoint_path))
+    torch.save(state, os.path.join('../checkpoint_out2',checkpoint_path))
     name_='W_'+checkpoint_path
-    torch.save(model,os.path.join('../checkpoint',name_))
+    torch.save(model,os.path.join('../checkpoint_out2',name_))
     print('model saved to %s' % checkpoint_path)
     
 def load_checkpoint(checkpoint_path, model, optimizer):
-    state = torch.load(os.path.join('../checkpoint',checkpoint_path))
+    state = torch.load(os.path.join('../checkpoint_out2',checkpoint_path))
     model.load_state_dict(state['state_dict'])
     optimizer.load_state_dict(state['optimizer'])
     print('model loaded from %s' % checkpoint_path)
@@ -95,22 +95,16 @@ def imshow2(img_m,img_f,ep=0, outfile ='./output'):
     plt.savefig(filename) 
 
                 
-def train_AC_GAN_V(GAN_G,GAN_D,soft=0.85,
+def train_AC_GAN_V(GAN_G,soft=0.85,
                    epoch=1,lr=1e-4,log_interval=100,Gr=10,startnum=36,plotep=10):
     #GAN
     GAN_G.to(device1)
-    GAN_D.to(device1)        
     optimizer_GAN_G = optim.Adam(GAN_G.parameters(), lr=lr)
-    optimizer_GAN_D = optim.Adam(GAN_D.parameters(), lr=lr)
 
     try:
-        load_checkpoint('Detector.pth',GAN_D,optimizer_GAN_D)
+        load_checkpoint('GAN.pth',GAN_G,optimizer_GAN_G)
     except:
-        print('***Dectector === no trained model ===')
-    try:
-        load_checkpoint('Gnerator.pth',GAN_G,optimizer_GAN_G)
-    except:
-        print('***Gnerator === no trained model ===')
+        print('***GAN === no trained model ===')
         
     criterion_GAN = nn.MSELoss().to(device1)
    
@@ -133,75 +127,69 @@ def train_AC_GAN_V(GAN_G,GAN_D,soft=0.85,
 
             
             #train Discriminator every batch
-            if batch_idx % 1 ==0:
+            if batch_idx % 2 ==0:
 #                print('======== Train Discriminator =========')
-                #GAN
-                optimizer_GAN_D.zero_grad()
-                output = GAN_D(real_img)
-                D_loss_real = criterion_GAN(output.float(), target_real.float()) 
-                # D_loss_real.backward() 
-                
+                #GAN                
+                optimizer_GAN_G.zero_grad()
                 z = z_creator(batch_size=batch_s).to(device1)
-                fake_img = GAN_G(z)
-                fake_img.detach()
-                output = GAN_D(fake_img)
-                D_loss_fake = criterion_GAN(output.float(), target_fake.float())
-                # D_loss_fake.backward()
                 
+                output_f, output_r,fake_img = GAN_G(z=z,real_img=real_img,mode='D')
+                
+                D_loss_real = criterion_GAN(output_r.float(), target_real.float())                
+                D_loss_fake = criterion_GAN(output_f.float(), target_fake.float())
+
                 D_loss = D_loss_real+D_loss_fake
                 D_loss.backward()
                 
-                optimizer_GAN_D.step()
+                optimizer_GAN_G.step()
                                            
             #train Generator every ?? batch
-            if batch_idx % Gr ==0:
+            if batch_idx % 2 ==1:
 #                print('======== Train Generator =========')
                 #GAN
                 optimizer_GAN_G.zero_grad()
                 z = z_creator(batch_size=batch_s).to(device1)
-                fake_img = GAN_G(z)
-                output = GAN_D(fake_img)
-                loss_fake = criterion_GAN(output.float(), target_ones.float())
-                loss_fake.backward()            
+                
+                output_f, output_r,fake_img = GAN_G(z=z,real_img=real_img,mode='G')
+                
+                D_loss = criterion_GAN(output_f.float(), target_ones.float())
+                D_loss.backward()            
                 optimizer_GAN_G.step()
                                                     
 
             if iteration % log_interval == 0:
-                print('Ep:{} [{} ({:.0f}%)] Dr:{:.4f} Df:{:.4f} G:{:.4f}'.format(
+                print('Ep:{} [{} ({:.0f}%)] G:{:.4f}'.format(
                     ep, batch_idx * len(real_img),
                     100. * batch_idx / len(trainset_loader),
-                    D_loss_real.item(),D_loss_fake.item(),loss_fake.item()))   
+                    D_loss.item()))   
             iteration +=1
 
         if ep % plotep ==0:
-            save_checkpoint('Gnerator.pth', GAN_G, optimizer_GAN_G)
-            save_checkpoint('Detector.pth', GAN_D, optimizer_GAN_D)
+            save_checkpoint('GAN.pth', GAN_G, optimizer_GAN_G)
 
             print('======= epoch:%i ========'%ep)
             imshow(torchvision.utils.make_grid(fake_img[:36].detach().cpu(),6),
-                   ep+0+int(startnum),outfile ='../output/GAN/')
+                   ep+0+int(startnum),outfile ='../output/GAN_out2/')
 
             GAN_G.eval()
             with torch.no_grad():       
                 z_fix1 = fix_z(batch_size=36).to(device1)                
-                fix_GAN = GAN_G(z_fix1)
+                _,_,fix_GAN = GAN_G(z_fix1,real_img)
                 imshow(torchvision.utils.make_grid(fix_GAN[:36].detach().cpu(),6),
-                      'GAN'+str(ep+0+int(startnum)),outfile ='../output/fix/')
+                      'GAN'+str(ep+0+int(startnum)),outfile ='../output/fix_out2/')
 
             
         print('++ Ep Time: {:.1f} Secs ++'.format(t0-time.time()))
 
-    save_checkpoint('Gnerator.pth', GAN_G, optimizer_GAN_G)
-    save_checkpoint('Detector.pth', GAN_D, optimizer_GAN_D)
+    save_checkpoint('GAN.pth', GAN_G, optimizer_GAN_G)
 
-G_gen = GAN_v01.Generator()
-G_dis = GAN_v01.Discriminator()
+G_gen = GAN_v01.GAN_in()
 
 print('==== Start Training ====')
 print('batch_size = ',batch_size)
-train_AC_GAN_V(G_gen,G_dis,
+train_AC_GAN_V(G_gen,
                soft=0.9,
                epoch=10000,lr=2e-4,
                log_interval=int(5000/batch_size),Gr=1,
-               startnum=10686,plotep=8)
+               startnum=0,plotep=8)
     

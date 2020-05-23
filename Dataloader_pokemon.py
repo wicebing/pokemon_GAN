@@ -5,6 +5,7 @@ import pandas as pd
 import glob
 import random
 import matplotlib.pyplot as plt
+import cv2
 
 import torch
 import torch.utils.data as data
@@ -19,7 +20,7 @@ class pokemon_loader(Dataset):
         self.root = root
         self.transform = transform
         # read filenames
-        self.filenames = glob.glob(os.path.join(root,'*.png'))
+        self.filenames = glob.glob(os.path.join(root,'*.*'))
         # img_labels = pd.read_csv(os.path.join(root,'pokemon.csv'))
         # np_img_label = np.array(img_labels['Male'])
         # np_img_label = np_img_label.astype(float)
@@ -30,7 +31,7 @@ class pokemon_loader(Dataset):
 
     def  __getitem__(self, index):
         image_fn = self.filenames[index]
-        img = io.open(image_fn)
+        img = cv2.imread(image_fn)
         
 #        img = self.data_preprocess(img)
         
@@ -49,8 +50,18 @@ class pokemon_loader(Dataset):
 
     def __len__(self):
         return self.len
-
-def test(idx=0,root='./Data/images/'):
-    floader = pokemon_loader(root)
-    img = floader[idx]['image']
+    
+    
+if __name__ =='__main__':
+    import torchvision.transforms as T
+    import torchvision
+    transform = T.Compose([T.ToPILImage(), 
+                           T.RandomHorizontalFlip(p=0.5),
+                           T.Resize((64,64)),
+                           T.ToTensor(),
+                           T.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+                           ])     
+    root ='./Data/images/'
+    floader = pokemon_loader(root,transform=transform)
+    img = floader[0]['image']
     plt.imshow(img)

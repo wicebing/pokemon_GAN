@@ -54,7 +54,7 @@ class Generator(nn.Module):
                                  nn.LeakyReLU(0.1),
                                  )
         self.out = nn.Sequential(nn.ConvTranspose2d(64,3,kernel_size=4,stride=2,padding=2),
-                                 nn.Sigmoid()
+                                 nn.Tanh()
                                  )
     def forward(self,x):
         x = self.gen1(x)
@@ -132,7 +132,87 @@ class Discriminator(nn.Module):
 #        print(x.shape)
         x = x.view(-1,1)
         return x 
+    
+class GAN(nn.Module):
+    def __init__(self):
+        super(GAN, self).__init__()
+        self.G = Generator()
+        self.D = Discriminator()
+    
+    def forward(self,z,real_img):
+        fake_img = self.G(z)
+        output_f = self.D(fake_img)
+        
+        output_r = self.D(real_img)
 
+        return output_f, output_r,fake_img
+
+class GAN_in(nn.Module):
+    def __init__(self):
+        super(GAN_in, self).__init__()
+        self.G = Generator()
+        self.D = Discriminator()
+    
+    def forward(self,z,real_img,mode=None):
+        
+        if mode == 'D':
+            for param in self.D.parameters():
+                param.requires_grad = True 
+
+            fake_img = self.G(z)
+           
+            output_f = self.D(fake_img.detach())            
+            output_r = self.D(real_img)
+            
+        elif mode == 'G':
+            for param in self.D.parameters():
+                param.requires_grad = False 
+
+            fake_img = self.G(z)
+            output_f = self.D(fake_img)            
+            output_r = self.D(real_img)
+        else:
+            fake_img = self.G(z)
+            output_f = self.D(fake_img)            
+            output_r = self.D(real_img)            
+
+        return output_f, output_r,fake_img
+
+class GAN_in2(nn.Module):
+    def __init__(self):
+        super(GAN_in2, self).__init__()
+        self.G = Generator()
+        self.D = Discriminator()
+    
+    def forward(self,z,real_img,mode=None):
+        
+        if mode == 'D':
+            for param in self.D.parameters():
+                param.requires_grad = True 
+            for param in self.G.parameters():
+                param.requires_grad = False 
+
+            fake_img = self.G(z)
+            
+            output_f = self.D(fake_img)            
+            output_r = self.D(real_img)
+            
+        elif mode == 'G':
+            for param in self.D.parameters():
+                param.requires_grad = False 
+            for param in self.G.parameters():
+                param.requires_grad = True 
+
+            fake_img = self.G(z)
+            output_f = self.D(fake_img)            
+            output_r = self.D(real_img)
+        else:
+            fake_img = self.G(z)
+            output_f = self.D(fake_img)            
+            output_r = self.D(real_img)            
+
+        return output_f, output_r,fake_img
+    
 def test():
     GEN = Generator()
     z = torch.randn(1,100,1,1)
